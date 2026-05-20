@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/pantry_screen.dart';
 
 void main() {
   runApp(const EcoTrackApp());
@@ -150,13 +151,21 @@ class DashboardScreen extends StatelessWidget {
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // We will code the AI scanner navigation here later!
+                    // This tells Flutter to transition beautifully to the Pantry Screen!
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PantryScreen(),
+                      ),
+                    );
                   },
-                  icon: const Icon(Icons.camera_alt),
+                  icon: const Icon(
+                    Icons.shopping_basket,
+                  ), // Changed icon to match a basket!
                   label: const Text(
-                    'SCAN NEW GROCERIES',
+                    'VIEW DIGITAL PANTRY',
                     style: TextStyle(fontSize: 16),
-                  ),
+                  ), // Changed text
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
