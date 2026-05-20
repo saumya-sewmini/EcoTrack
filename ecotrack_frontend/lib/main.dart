@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/pantry_screen.dart';
+import 'screens/scanner_screen.dart';
 
 void main() {
   runApp(const EcoTrackApp());
@@ -147,38 +148,67 @@ class DashboardScreen extends StatelessWidget {
 
               const SizedBox(height: 40),
 
-              // Big Scan Button
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // This tells Flutter to transition beautifully to the Pantry Screen!
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PantryScreen(),
+              // Two beautiful action buttons stacked neatly!
+              Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ScannerScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.camera_alt),
+                      label: const Text(
+                        'OPEN AI CAMERA SCANNER',
+                        style: TextStyle(fontSize: 16),
                       ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.shopping_basket,
-                  ), // Changed icon to match a basket!
-                  label: const Text(
-                    'VIEW DIGITAL PANTRY',
-                    style: TextStyle(fontSize: 16),
-                  ), // Changed text
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PantryScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.shopping_basket,
+                        color: Colors.green,
+                      ),
+                      label: const Text(
+                        'VIEW DIGITAL PANTRY',
+                        style: TextStyle(fontSize: 16, color: Colors.green),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.green, width: 2),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              
             ],
           ),
         ),

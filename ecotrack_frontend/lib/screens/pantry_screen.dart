@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart'; // Import our network bridge!
 
-class PantryScreen extends StatelessWidget {
+class PantryScreen extends StatefulWidget {
   const PantryScreen({super.key});
+
+  @override
+  State<PantryScreen> createState() => _PantryScreenState();
+}
+
+class _PantryScreenState extends State<PantryScreen> {
+  late Future<List<dynamic>> _pantryItems;
+
+  @override
+  void initState() {
+    super.initState();
+    // When this screen loads, instantly hit the Python server for fresh data!
+    _pantryItems = ApiService.fetchPantryItems();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          '🛒 Digital Pantry Inventory',
+          '🛒 Live Python Pantry',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.green.shade100,
@@ -17,81 +32,70 @@ class PantryScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Search Bar Widget
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search pantry...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
+            const Text(
+              'This data is being pulled directly from your running Python API backend!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
 
-            // Main Inventory List
             Expanded(
-              child: ListView(
-                children: [
-                  _buildPantryItem(
-                    '🥑 Avocados',
-                    '3 units remaining',
-                    'Expires in 3 days',
-                    Colors.green,
-                  ),
-                  _buildPantryItem(
-                    '🍞 Whole Wheat Bread',
-                    '1 loaf',
-                    'Expires today!',
-                    Colors.orange,
-                  ),
-                  _buildPantryItem(
-                    '🥦 Fresh Broccoli',
-                    '500g',
-                    'Expires in 6 days',
-                    Colors.green,
-                  ),
-                  _buildPantryItem(
-                    '🥩 Chicken Breast',
-                    '2 packs',
-                    'Expired 1 day ago 🗑️',
-                    Colors.red,
-                  ),
-                ],
+              child: FutureBuilder<List<dynamic>>(
+                future: _pantryItems,
+                builder: (context, snapshot) {
+                  // While waiting for Python to respond, show a loading wheel
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  // If something went wrong, show an error message
+                  else if (snapshot.hasError ||
+                      snapshot.data == null ||
+                      snapshot.data!.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        '❌ Could not connect to Python backend server. Make sure uvicorn is running!',
+                      ),
+                    );
+                  }
+
+                  // Once data arrives safely, build the list dynamically!
+                  final items = snapshot.data!;
+                  return ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        child: ListTile(
+                          title: Text(
+                            item['name'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Quantity: ${item['quantity']} • Expires in ${item['days_left']} days',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          leading: const CircleAvatar(
+                            backgroundColor: Colors.greenAccent,
+                            child: Icon(Icons.bolt, color: Colors.green),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // A helper function to build list items cleanly without duplicating code!
-  Widget _buildPantryItem(
-    String name,
-    String quantity,
-    String details,
-    Color statusColor,
-  ) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: ListTile(
-        title: Text(
-          name,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        subtitle: Text('$quantity • $details'),
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.1),
-          child: Icon(Icons.fastfood, color: statusColor),
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.check_circle_outline, color: Colors.grey),
-          onPressed: () {
-            // Future feature: Mark item as consumed!
-          },
         ),
       ),
     );
