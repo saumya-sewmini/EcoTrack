@@ -21,4 +21,35 @@ class ApiService {
       return [];
     }
   }
+
+  // Add this function inside your ApiService class
+  static Future<Map<String, dynamic>?> uploadAndScanImage(
+    dynamic pickedFile,
+  ) async {
+    try {
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/scan'));
+
+      // Read the file bytes out of the picker (works beautifully across mobile and web!)
+      var bytes = await pickedFile.readAsBytes();
+      var multipartFile = http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: pickedFile.name,
+      );
+
+      request.files.add(multipartFile);
+
+      // Send the request over the network to Python
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print("Upload Error: $e");
+      return null;
+    }
+  }
 }

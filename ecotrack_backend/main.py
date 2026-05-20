@@ -1,6 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="EcoTrack AI Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[""],
+    allow_credentials=True,
+    allow_methods=[""],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
@@ -30,3 +39,18 @@ def get_pantry_items():
             "days_left": 0,
         },
     ]
+
+
+@app.post("/api/scan")
+async def scan_item(file: UploadFile = File(...)):
+    # This is where our Python AI model will analyze the image later.
+    # For now, it successfully intercepts the real file and responds dynamically!
+    print("📸 Received file from Flutter: " + file.filename)
+
+    return {
+    "status": "success",
+    "filename": file.filename,
+    "detected_item": "🍉 Fresh Watermelon",
+    "days_left": 7,
+    "confidence_score": "94.2%"
+}

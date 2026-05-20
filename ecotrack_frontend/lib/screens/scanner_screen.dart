@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/api_service.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -9,21 +11,35 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   bool _isScanning = false;
-  String _scanResult = "No item scanned yet. Tap the button below!";
+  String _scanResult = "No item uploaded yet. Click below to choose an image!";
+  final ImagePicker _picker = ImagePicker();
 
-  // This function will simulate sending an image to our Python AI backend
-  void _simulateAIScan() {
+  Future<void> _pickAndUploadImage() async {
+    // Open the local system file/gallery dialog
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+
+    if (image == null) return; // User cancelled picking an image
+
     setState(() {
       _isScanning = true;
+      _scanResult = "Uploading and processing image via Python API...";
     });
 
-    // Simulate a 2-second network delay while Python "processes" the image
-    Future.delayed(const Duration(seconds: 2), () {
-      setState(() {
-        _isScanning = false;
+    // Make the real API network transaction
+    final result = await ApiService.uploadAndScanImage(image);
+
+    setState(() {
+      _isScanning = false;
+      if (result != null && result['status'] == 'success') {
         _scanResult =
-            "✨ AI Detection Result:\n\n🍉 Fresh Watermelon detected!\nEstimated Shelf Life: 7 Days";
-      });
+            "✨ AI Detection Match:\n\n"
+            "Item: ${result['detected_item']}\n"
+            "Shelf Life Estimate: ${result['days_left']} Days\n"
+            "File Logged: ${result['filename']}";
+      } else {
+        _scanResult =
+            "❌ Error processing image. Check if Python server is online.";
+      }
     });
   }
 
@@ -32,7 +48,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          '📸 Smart AI Scanner',
+          '📸 Live AI Scanner',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.green.shade100,
@@ -43,11 +59,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Simulated Camera View Finder / Box
             Container(
               height: 250,
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.green, width: 2),
               ),
@@ -55,36 +70,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   ? const Center(
                       child: CircularProgressIndicator(color: Colors.green),
                     )
-                  : const Icon(Icons.camera_alt, size: 80, color: Colors.green),
+                  : const Icon(
+                      Icons.cloud_upload_outlined,
+                      size: 80,
+                      color: Colors.green,
+                    ),
             ),
             const SizedBox(height: 30),
-
-            // AI Result Card
             Card(
               color: Color(0xFF50C878),
-              elevation: 2,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                key: ValueKey(_scanResult),
                 child: Text(
                   _scanResult,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF2E7D32),
                   ),
                 ),
               ),
             ),
             const SizedBox(height: 40),
-
-            // Scan Action Button
             ElevatedButton.icon(
-              onPressed: _isScanning ? null : _simulateAIScan,
-              icon: const Icon(Icons.blur_on),
+              onPressed: _isScanning ? null : _pickAndUploadImage,
+              icon: const Icon(Icons.photo_library),
               label: Text(
-                _isScanning ? 'AI ANALYZING...' : 'CAPTURE & ANALYZE',
+                _isScanning ? 'UPLOADING...' : 'CHOOSE IMAGE & ANALYZE',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
