@@ -7,6 +7,9 @@ from PIL import Image
 from google import genai
 from google.genai import types
 import mimetypes
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="EcoTrack AI Backend")
 
@@ -20,24 +23,90 @@ app.add_middleware(
 
 # 💾 Active Memory Database
 pantry_database = [
-    {"id": 1, "name": "🚀 Python Powered Avocados", "quantity": "5 units", "days_left": 4},
+    {
+        "id": 1,
+        "name": "Avocados",
+        "quantity": "5 units",
+        "days_left": 4,
+    },
     {"id": 2, "name": "🥛 Fresh Organic Milk", "quantity": "1 bottle", "days_left": 2},
-    {"id": 3, "name": "🍓 Sweet Strawberries", "quantity": "1 pack", "days_left": 0}
 ]
+
 
 @app.get("/")
 def home():
     return {"message": "Welcome to the EcoTrack AI Backend Engine!"}
 
+
 @app.get("/api/pantry")
 def get_pantry_items():
     return pantry_database
+
+
+# Generates a custom recipe from active pantry ingredients
+@app.get("/api/recipes")
+def generate_pantry_recipe():
+    print("🍳 AI Chef is looking through the pantry...")
+
+    # Check if the user actually has items tracked
+    if not pantry_database:
+        return {
+            "recipe": "Your digital pantry is currently empty! Scan some ingredients first so the AI Chef has something to work with."
+        }
+
+    # Extract just the clean food names from our database objects
+    food_names = [
+        item["name"]
+        .replace("✨ ", "")
+        .replace("🚀 ", "")
+        .replace("🥛 ", "")
+        .replace("🍓 ", "")
+        for item in pantry_database
+    ]
+    ingredients_string = ", ".join(food_names)
+
+    print(f"Ingredients passing to Chef: {ingredients_string}")
+
+    # Initialize client safely using our verified setup
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {
+            "recipe": "Error: GEMINI_API_KEY is missing from your .env configuration file."
+        }
+
+    try:
+        client = genai.Client(api_key=api_key)
+
+        chef_prompt = (
+            f"You are EcoChef, an elite anti-food-waste culinary AI. Look at this list of ingredients "
+            f"available in the user's kitchen: {ingredients_string}. \n\n"
+            "Create a simple, delicious recipe that utilizes one or more of these items. "
+            "Structure your answer clearly with a 🍳 Recipe Title, a brief Ingredients needed section, "
+            "and a clear, numbered 3-step preparation guide. Keep the total response concise and fun!"
+        )
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=chef_prompt
+        )
+
+        return {"recipe": response.text}
+
+    except Exception as e:
+        print(f"❌ EcoChef Error: {str(e)}")
+        return {
+            "recipe": "The kitchen is temporarily closed! Unable to generate a recipe right now."
+        }
+
 
 @app.post("/api/scan")
 async def scan_item(file: UploadFile = File(...)):
     print(f"📸 Received file for AI analysis: {file.filename}")
 
-    api_key = os.environ.get("GEMINI_API_KEY", "AIzaSyCdwpBmWYl_wcxgdSHgbELw6FKNUHtD9Nw")
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=500, detail="GEMINI_API_KEY is missing from your .env file."
+        )
 
     try:
         # 1. Read the file bytes directly
@@ -49,7 +118,7 @@ async def scan_item(file: UploadFile = File(...)):
         if not mime_type or mime_type == "application/octet-stream":
             # Default to image/jpeg if guessing fails, which works for most photos!
             mime_type = "image/jpeg"
-            
+
         print(f"⚙️ Overriding transmission label to valid type: {mime_type}")
 
         # 3. Initialize the Google Gen AI Client

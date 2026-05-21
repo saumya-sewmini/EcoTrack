@@ -52,4 +52,18 @@ class ApiService {
       return null;
     }
   }
+
+  // Fetch an AI generated recipe based on what is in the pantry database
+  static Future<String> fetchAIChefRecipe() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/recipes'));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data['recipe'] ?? "No recipe text returned.";
+      }
+      return "Failed to communicate with the kitchen server.";
+    } catch (e) {
+      return "Error contacting backend: $e";
+    }
+  }
 }
