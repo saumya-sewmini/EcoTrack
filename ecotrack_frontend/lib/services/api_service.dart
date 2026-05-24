@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -64,6 +65,20 @@ class ApiService {
       return "Failed to communicate with the kitchen server.";
     } catch (e) {
       return "Error contacting backend: $e";
+    }
+  }
+
+  // Send a DELETE request to clear an item out of the backend array
+  static Future deletePantryItem(int id) async {
+    try {
+      final response = await http.delete(Uri.parse('$baseUrl/pantry/$id'));
+      if (response.statusCode == 200) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error deleting item: $e");
+      return false;
     }
   }
 }

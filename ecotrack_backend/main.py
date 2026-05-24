@@ -43,6 +43,22 @@ def get_pantry_items():
     return pantry_database
 
 
+@app.delete("/api/pantry/{item_id}")
+def delete_pantry_item(item_id: int):
+    print(f"🗑️ Request received to delete item ID: {item_id}")
+
+    global pantry_database
+
+    item_exists = any(item["id"] == item_id for item in pantry_database)
+    if not item_exists:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    pantry_database = [item for item in pantry_database if item["id"] != item_id]
+    
+    print(f"💾 Database updated. Remaining items count: {len(pantry_database)}")
+    return {"status": "success", "message": f"Item {item_id} successfully removed."}
+
+
 # Generates a custom recipe from active pantry ingredients
 @app.get("/api/recipes")
 def generate_pantry_recipe():

@@ -14,10 +14,16 @@ class _PantryScreenState extends State<PantryScreen> {
   @override
   void initState() {
     super.initState();
-    _pantryFuture = ApiService.fetchPantryItems();
+    _refreshPantry();
   }
 
-  // Pops up a clean bottom sheet overlay displaying the AI Chef text
+  // Helper method to reload data smoothly from the server
+  void _refreshPantry() {
+    setState(() {
+      _pantryFuture = ApiService.fetchPantryItems();
+    });
+  }
+
   void _showAIChefDialog() async {
     showModalBottomSheet(
       context: context,
@@ -48,7 +54,6 @@ class _PantryScreenState extends State<PantryScreen> {
                   ),
                 );
               }
-
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -60,7 +65,7 @@ class _PantryScreenState extends State<PantryScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFFFFC107),
+                          color: Color(0xFFD4AF37),
                         ),
                       ),
                       IconButton(
@@ -74,11 +79,7 @@ class _PantryScreenState extends State<PantryScreen> {
                     child: SingleChildScrollView(
                       child: Text(
                         snapshot.data ?? "No recipe found.",
-                        style: const TextStyle(
-                          fontSize: 15,
-                          height: 1.5,
-                          fontWeight: FontWeight.w400,
-                        ),
+                        style: const TextStyle(fontSize: 15, height: 1.5),
                       ),
                     ),
                   ),
@@ -91,6 +92,85 @@ class _PantryScreenState extends State<PantryScreen> {
     );
   }
 
+  // 📊 NEW: A modular row widget that calculates and displays kitchen statistics
+  Widget _buildSummaryDashboard(List<dynamic> items) {
+    final totalCount = items.length;
+
+    // Count items with 1 day or less remaining
+    final urgentCount = items
+        .where((item) => (item['days_left'] ?? 0) <= 1)
+        .length;
+    final stableCount = totalCount - urgentCount;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        children: [
+          _buildStatCard(
+            "Total Items",
+            totalCount.toString(),
+            Colors.blue.shade100,
+            Colors.blue.shade900,
+          ),
+          const SizedBox(width: 12),
+          _buildStatCard(
+            "Use Urgent",
+            urgentCount.toString(),
+            Colors.red.shade100,
+            Colors.red.shade900,
+          ),
+          const SizedBox(width: 12),
+          _buildStatCard(
+            "Stable",
+            stableCount.toString(),
+            Colors.green.shade100,
+            Colors.green.shade900,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper widget to construct individual metric boxes cleanly
+  Widget _buildStatCard(
+    String label,
+    String value,
+    Color bgColor,
+    Color textColor,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: textColor.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,6 +180,13 @@ class _PantryScreenState extends State<PantryScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.green.shade100,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed:
+                _refreshPantry, // Quick manual sync action refresh button
+          ),
+        ],
       ),
       body: FutureBuilder<List<dynamic>?>(
         future: _pantryFuture,
@@ -114,55 +201,114 @@ class _PantryScreenState extends State<PantryScreen> {
 
           final items = snapshot.data!;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          if (items.isEmpty) {
+            return const Center(
+              child: Text(
+                '🥗 Your pantry is sparkling clean! Scan food to begin tracking.',
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // 1. Injection of our dynamic metrics banner
+                _buildSummaryDashboard(items),
+
+                // 2. Wrapped listview inside an Expanded component to share layout space safely
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return Dismissible(
+                        key: Key(item['id'].toString()),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade400,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        onDismissed: (direction) async {
+                          final success = await ApiService.deletePantryItem(
+                            item['id'],
+                          );
+                          if (success) {
+                            // Remove locally straight away to keep rendering fast and snapping smooth
+                            setState(() {
+                              items.removeAt(index);
+                            });
+                            if (mounted) {
+                              // ignore: use_build_context_synchronously
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Removed ${item['name']}'),
+                                ),
+                              );
+                            }
+                          } else {
+                            // Rollback if server fails connection
+                            _refreshPantry();
+                          }
+                        },
+                        child: Card(
+                          elevation: 1,
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Colors.greenAccent,
+                              child: Icon(
+                                Icons.restaurant,
+                                color: Color(0xFF006400),
+                              ),
+                            ),
+                            title: Text(
+                              item['name'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text('Quantity: ${item['quantity']}'),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (item['days_left'] ?? 0) <= 1
+                                    ? Colors.red.shade100
+                                    : Colors.orange.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '${item['days_left']} days left',
+                                style: TextStyle(
+                                  color: (item['days_left'] ?? 0) <= 1
+                                      ? Colors.red.shade900
+                                      : Colors.orange.shade900,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: Colors.greenAccent,
-                    child: Icon(Icons.restaurant, color: Color(0xFF1B5E20)),
-                  ),
-                  title: Text(
-                    item['name'],
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text('Quantity: ${item['quantity']}'),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: item['days_left'] == 0
-                          ? Colors.red.shade100
-                          : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${item['days_left']} days left',
-                      style: TextStyle(
-                        color: item['days_left'] == 0
-                            ? Colors.red.shade900
-                            : Colors.orange.shade900,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
+              ],
+            ),
           );
         },
       ),
-      // 🌟 MAGIC ACTION BUTTON: Triggers the EcoChef compilation panel!
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAIChefDialog,
         backgroundColor: Colors.amber,
@@ -176,7 +322,6 @@ class _PantryScreenState extends State<PantryScreen> {
   }
 }
 
-// Quick tiny color constant fix for styling consistency
 extension CustomColors on TextStyle {
   static const Color amberDetail = Color(0xFFD97706);
 }
