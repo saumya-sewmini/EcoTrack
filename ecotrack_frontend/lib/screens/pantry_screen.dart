@@ -17,7 +17,6 @@ class _PantryScreenState extends State<PantryScreen> {
     _refreshPantry();
   }
 
-  // Helper method to reload data smoothly from the server
   void _refreshPantry() {
     setState(() {
       _pantryFuture = ApiService.fetchPantryItems();
@@ -65,7 +64,7 @@ class _PantryScreenState extends State<PantryScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFFD4AF37),
+                          color: CustomColors.amberDetail,
                         ),
                       ),
                       IconButton(
@@ -92,46 +91,40 @@ class _PantryScreenState extends State<PantryScreen> {
     );
   }
 
-  // 📊 NEW: A modular row widget that calculates and displays kitchen statistics
+  // Summary Metrics Dashboard Component
   Widget _buildSummaryDashboard(List<dynamic> items) {
     final totalCount = items.length;
-
-    // Count items with 1 day or less remaining
     final urgentCount = items
         .where((item) => (item['days_left'] ?? 0) <= 1)
         .length;
     final stableCount = totalCount - urgentCount;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Row(
-        children: [
-          _buildStatCard(
-            "Total Items",
-            totalCount.toString(),
-            Colors.blue.shade100,
-            Colors.blue.shade900,
-          ),
-          const SizedBox(width: 12),
-          _buildStatCard(
-            "Use Urgent",
-            urgentCount.toString(),
-            Colors.red.shade100,
-            Colors.red.shade900,
-          ),
-          const SizedBox(width: 12),
-          _buildStatCard(
-            "Stable",
-            stableCount.toString(),
-            Colors.green.shade100,
-            Colors.green.shade900,
-          ),
-        ],
-      ),
+    return Row(
+      children: [
+        _buildStatCard(
+          "Total Items",
+          totalCount.toString(),
+          Colors.blue.shade100,
+          Colors.blue.shade900,
+        ),
+        const SizedBox(width: 12),
+        _buildStatCard(
+          "Use Urgent",
+          urgentCount.toString(),
+          Colors.red.shade100,
+          Colors.red.shade900,
+        ),
+        const SizedBox(width: 12),
+        _buildStatCard(
+          "Stable",
+          stableCount.toString(),
+          Colors.green.shade100,
+          Colors.green.shade900,
+        ),
+      ],
     );
   }
 
-  // Helper widget to construct individual metric boxes cleanly
   Widget _buildStatCard(
     String label,
     String value,
@@ -171,6 +164,89 @@ class _PantryScreenState extends State<PantryScreen> {
     );
   }
 
+  // ⚠️ NEW: Intelligent Expiry Alert Banner Widget
+  Widget _buildExpiryAlertBanner(List<dynamic> items) {
+    // Filter out items that are expiring today (0 days) or tomorrow (1 day)
+    final criticalItems = items
+        .where((item) => (item['days_left'] ?? 0) <= 1)
+        .toList();
+
+    // If everything is completely safe, collapse the widget to prevent empty screen padding
+    if (criticalItems.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.shade200, width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red.shade700,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "CRITICAL EXPIRY ALERTS (${criticalItems.length})",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade900,
+                  fontSize: 14,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Loop and generate inline micro-warnings for high risk items
+          ...criticalItems.map((item) {
+            final isExpired = (item['days_left'] ?? 0) == 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Icon(Icons.arrow_right, color: Colors.red.shade400, size: 18),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 14,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: item['name'],
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          TextSpan(
+                            text: isExpired
+                                ? " has EXPIRED! 🚨"
+                                : " expires TOMORROW! ⏳",
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,8 +259,7 @@ class _PantryScreenState extends State<PantryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed:
-                _refreshPantry, // Quick manual sync action refresh button
+            onPressed: _refreshPantry,
           ),
         ],
       ),
@@ -213,15 +288,32 @@ class _PantryScreenState extends State<PantryScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // 1. Injection of our dynamic metrics banner
                 _buildSummaryDashboard(items),
 
-                // 2. Wrapped listview inside an Expanded component to share layout space safely
+                // 🚨 Injecting our new reactive Expiry Warning engine
+                _buildExpiryAlertBanner(items),
+
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "All Inventory Items",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
                 Expanded(
                   child: ListView.builder(
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
+                      final isUrgent = (item['days_left'] ?? 0) <= 1;
+
                       return Dismissible(
                         key: Key(item['id'].toString()),
                         direction: DismissDirection.endToStart,
@@ -239,12 +331,10 @@ class _PantryScreenState extends State<PantryScreen> {
                             item['id'],
                           );
                           if (success) {
-                            // Remove locally straight away to keep rendering fast and snapping smooth
                             setState(() {
                               items.removeAt(index);
                             });
                             if (mounted) {
-                              // ignore: use_build_context_synchronously
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('Removed ${item['name']}'),
@@ -252,22 +342,34 @@ class _PantryScreenState extends State<PantryScreen> {
                               );
                             }
                           } else {
-                            // Rollback if server fails connection
                             _refreshPantry();
                           }
                         },
                         child: Card(
                           elevation: 1,
                           margin: const EdgeInsets.symmetric(vertical: 6),
+                          // Highlight the physical card border if it is urgent
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
+                            side: isUrgent
+                                ? BorderSide(
+                                    color: Colors.red.shade300,
+                                    width: 1,
+                                  )
+                                : BorderSide.none,
                           ),
                           child: ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: Colors.greenAccent,
+                            leading: CircleAvatar(
+                              backgroundColor: isUrgent
+                                  ? Colors.red.shade100
+                                  : Colors.greenAccent,
                               child: Icon(
-                                Icons.restaurant,
-                                color: Color(0xFF006400),
+                                isUrgent
+                                    ? Icons.priority_high
+                                    : Icons.restaurant,
+                                color: isUrgent
+                                    ? Colors.red.shade900
+                                    : Colors.green.shade900,
                               ),
                             ),
                             title: Text(
@@ -283,7 +385,7 @@ class _PantryScreenState extends State<PantryScreen> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: (item['days_left'] ?? 0) <= 1
+                                color: isUrgent
                                     ? Colors.red.shade100
                                     : Colors.orange.shade100,
                                 borderRadius: BorderRadius.circular(20),
@@ -291,7 +393,7 @@ class _PantryScreenState extends State<PantryScreen> {
                               child: Text(
                                 '${item['days_left']} days left',
                                 style: TextStyle(
-                                  color: (item['days_left'] ?? 0) <= 1
+                                  color: isUrgent
                                       ? Colors.red.shade900
                                       : Colors.orange.shade900,
                                   fontWeight: FontWeight.bold,
@@ -322,6 +424,6 @@ class _PantryScreenState extends State<PantryScreen> {
   }
 }
 
-extension CustomColors on TextStyle {
+class CustomColors {
   static const Color amberDetail = Color(0xFFD97706);
 }
