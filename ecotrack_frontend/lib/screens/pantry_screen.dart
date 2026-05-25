@@ -17,13 +17,18 @@ class _PantryScreenState extends State<PantryScreen> {
     _refreshPantry();
   }
 
+  /// Synchronizes the local presentation state with the remote data repository stream.
   void _refreshPantry() {
     setState(() {
       _pantryFuture = ApiService.fetchPantryItems();
     });
   }
 
-  void _showAIChefDialog() async {
+  /// Displays the interactive recipe intelligence sheet.
+  /// The collection future is evaluated outside the builder to guarantee lifecycle stability.
+  void _showAIChefDialog() {
+    final Future<String> recipeInferenceFuture = ApiService.fetchAIChefRecipe();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -34,25 +39,35 @@ class _PantryScreenState extends State<PantryScreen> {
       builder: (context) {
         return Container(
           padding: const EdgeInsets.all(24),
-          height: MediaQuery.of(context).size.height * 0.7,
+          height: MediaQuery.of(context).size.height * 0.75,
           child: FutureBuilder<String>(
-            future: ApiService.fetchAIChefRecipe(),
+            future: recipeInferenceFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      CircularProgressIndicator(color: Colors.amber),
-                      SizedBox(height: 16),
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          CustomColors.amberDetail,
+                        ),
+                        strokeWidth: 2.5,
+                      ),
+                      const SizedBox(height: 16),
                       Text(
-                        "🍳 EcoChef is combining your ingredients...",
-                        style: TextStyle(fontWeight: FontWeight.w500),
+                        "Orchestrating menu variants from active inventory...",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF5F6368),
+                        ),
                       ),
                     ],
                   ),
                 );
               }
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -60,25 +75,36 @@ class _PantryScreenState extends State<PantryScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        "✨ AI Recipe Suggestions",
+                        "AI Generative Recipes",
                         style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
                           color: CustomColors.amberDetail,
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: Color(0xFF5F6368),
+                        ),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                  const Divider(),
+                  const Divider(height: 24, color: Color(0xFFF1F3F4)),
                   Expanded(
                     child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
                       child: Text(
-                        snapshot.data ?? "No recipe found.",
-                        style: const TextStyle(fontSize: 15, height: 1.5),
+                        snapshot.data ??
+                            "Inference cycle returned no valid processing guidelines.",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: Color(0xFF202124),
+                        ),
                       ),
                     ),
                   ),
@@ -91,174 +117,29 @@ class _PantryScreenState extends State<PantryScreen> {
     );
   }
 
-  // Summary Metrics Dashboard Component
-  Widget _buildSummaryDashboard(List<dynamic> items) {
-    final totalCount = items.length;
-    final urgentCount = items
-        .where((item) => (item['days_left'] ?? 0) <= 1)
-        .length;
-    final stableCount = totalCount - urgentCount;
-
-    return Row(
-      children: [
-        _buildStatCard(
-          "Total Items",
-          totalCount.toString(),
-          Colors.blue.shade100,
-          Colors.blue.shade900,
-        ),
-        const SizedBox(width: 12),
-        _buildStatCard(
-          "Use Urgent",
-          urgentCount.toString(),
-          Colors.red.shade100,
-          Colors.red.shade900,
-        ),
-        const SizedBox(width: 12),
-        _buildStatCard(
-          "Stable",
-          stableCount.toString(),
-          Colors.green.shade100,
-          Colors.green.shade900,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(
-    String label,
-    String value,
-    Color bgColor,
-    Color textColor,
-  ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: textColor.withValues(alpha: 0.8),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ⚠️ NEW: Intelligent Expiry Alert Banner Widget
-  Widget _buildExpiryAlertBanner(List<dynamic> items) {
-    // Filter out items that are expiring today (0 days) or tomorrow (1 day)
-    final criticalItems = items
-        .where((item) => (item['days_left'] ?? 0) <= 1)
-        .toList();
-
-    // If everything is completely safe, collapse the widget to prevent empty screen padding
-    if (criticalItems.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.shade200, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.red.shade700,
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "CRITICAL EXPIRY ALERTS (${criticalItems.length})",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red.shade900,
-                  fontSize: 14,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Loop and generate inline micro-warnings for high risk items
-          ...criticalItems.map((item) {
-            final isExpired = (item['days_left'] ?? 0) == 0;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                children: [
-                  Icon(Icons.arrow_right, color: Colors.red.shade400, size: 18),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: item['name'],
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          TextSpan(
-                            text: isExpired
-                                ? " has EXPIRED! 🚨"
-                                : " expires TOMORROW! ⏳",
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: theme.colorScheme.background,
       appBar: AppBar(
         title: const Text(
-          '📋 Current Digital Pantry',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          'Inventory Ledger',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            letterSpacing: -0.3,
+          ),
         ),
-        backgroundColor: Colors.green.shade100,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: theme.colorScheme.secondary,
+            ),
             onPressed: _refreshPantry,
           ),
         ],
@@ -267,49 +148,67 @@ class _PantryScreenState extends State<PantryScreen> {
         future: _pantryFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.green),
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  theme.colorScheme.primary,
+                ),
+                strokeWidth: 2.5,
+              ),
             );
           } else if (snapshot.hasError || snapshot.data == null) {
-            return const Center(child: Text('❌ Could not load pantry items.'));
+            return const Center(
+              child: Text(
+                'Data Synchronizer Error: Pipeline execution failed.',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
           }
 
           final items = snapshot.data!;
 
           if (items.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
-                '🥗 Your pantry is sparkling clean! Scan food to begin tracking.',
+                'Tracking database is empty. Scan assets to populate registry.',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             );
           }
 
           return Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 8.0,
+            ),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSummaryDashboard(items),
-
-                // 🚨 Injecting our new reactive Expiry Warning engine
                 _buildExpiryAlertBanner(items),
-
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "All Inventory Items",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade700,
-                    ),
+                const SizedBox(height: 16),
+                const Text(
+                  "REGISTERED TRACKING POOL",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.0,
+                    color: Color(0xFF5F6368),
                   ),
                 ),
-                const SizedBox(height: 8),
-
+                const SizedBox(height: 12),
                 Expanded(
                   child: ListView.builder(
                     itemCount: items.length,
+                    physics: const BouncingScrollPhysics(),
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final isUrgent = (item['days_left'] ?? 0) <= 1;
@@ -319,12 +218,16 @@ class _PantryScreenState extends State<PantryScreen> {
                         direction: DismissDirection.endToStart,
                         background: Container(
                           alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
+                          padding: const EdgeInsets.only(right: 24),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade400,
+                            color: Colors.red.shade600,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.delete, color: Colors.white),
+                          child: const Icon(
+                            Icons.delete_sweep_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                         onDismissed: (direction) async {
                           final success = await ApiService.deletePantryItem(
@@ -334,10 +237,13 @@ class _PantryScreenState extends State<PantryScreen> {
                             setState(() {
                               items.removeAt(index);
                             });
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('Removed ${item['name']}'),
+                                  content: Text(
+                                    'Safely removed asset reference: ${item['name']}',
+                                  ),
+                                  behavior: SnackBarBehavior.floating,
                                 ),
                               );
                             }
@@ -345,58 +251,71 @@ class _PantryScreenState extends State<PantryScreen> {
                             _refreshPantry();
                           }
                         },
-                        child: Card(
-                          elevation: 1,
+                        child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 6),
-                          // Highlight the physical card border if it is urgent
-                          shape: RoundedRectangleBorder(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            side: isUrgent
-                                ? BorderSide(
-                                    color: Colors.red.shade300,
-                                    width: 1,
-                                  )
-                                : BorderSide.none,
+                            border: Border.all(
+                              color: isUrgent
+                                  ? Colors.red.shade200
+                                  : const Color(0xFFE0E0E0),
+                              width: 1,
+                            ),
                           ),
                           child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
                             leading: CircleAvatar(
                               backgroundColor: isUrgent
-                                  ? Colors.red.shade100
-                                  : Colors.greenAccent,
+                                  ? Colors.red.shade50
+                                  : const Color(0xFFF1F3F4),
                               child: Icon(
                                 isUrgent
-                                    ? Icons.priority_high
-                                    : Icons.restaurant,
+                                    ? Icons.error_outline_rounded
+                                    : Icons.inventory_2_outlined,
                                 color: isUrgent
-                                    ? Colors.red.shade900
-                                    : Colors.green.shade900,
+                                    ? Colors.red.shade700
+                                    : const Color(0xFF5F6368),
+                                size: 20,
                               ),
                             ),
                             title: Text(
                               item['name'],
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: Color(0xFF202124),
                               ),
                             ),
-                            subtitle: Text('Quantity: ${item['quantity']}'),
+                            subtitle: Text(
+                              'Quantity Metric: ${item['quantity']}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF5F6368),
+                              ),
+                            ),
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
+                                horizontal: 10,
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
                                 color: isUrgent
-                                    ? Colors.red.shade100
-                                    : Colors.orange.shade100,
+                                    ? Colors.red.shade50
+                                    : const Color(0xFFFFF7ED),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                '${item['days_left']} days left',
+                                '${item['days_left']} Days Left',
                                 style: TextStyle(
                                   color: isUrgent
-                                      ? Colors.red.shade900
-                                      : Colors.orange.shade900,
-                                  fontWeight: FontWeight.bold,
+                                      ? Colors.red.shade800
+                                      : CustomColors.amberDetail,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),
@@ -413,12 +332,176 @@ class _PantryScreenState extends State<PantryScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAIChefDialog,
-        backgroundColor: Colors.amber,
-        icon: const Icon(Icons.auto_awesome, color: Colors.black87),
+        backgroundColor: CustomColors.amberDetail,
+        elevation: 2,
+        icon: const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
         label: const Text(
-          "ASK AI CHEF",
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          "INITIALIZE AI KITCHEN CHEF",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            letterSpacing: 0.5,
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryDashboard(List<dynamic> items) {
+    final totalCount = items.length;
+    final urgentCount = items
+        .where((item) => (item['days_left'] ?? 0) <= 1)
+        .length;
+    final stableCount = totalCount - urgentCount;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        children: [
+          _buildStatCard(
+            "Total Pools",
+            totalCount.toString(),
+            const Color(0xFFE8F0FE),
+            const Color(0xFF1967D2),
+          ),
+          const SizedBox(width: 8),
+          _buildStatCard(
+            "Critical Action",
+            urgentCount.toString(),
+            const Color(0xFFFCE8E6),
+            const Color(0xFFC5221F),
+          ),
+          const SizedBox(width: 8),
+          _buildStatCard(
+            "Nominal Items",
+            stableCount.toString(),
+            const Color(0xFFE6F4EA),
+            const Color(0xFF137333),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+    String label,
+    String value,
+    Color bgColor,
+    Color textColor,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: textColor.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpiryAlertBanner(List<dynamic> items) {
+    final criticalItems = items
+        .where((item) => (item['days_left'] ?? 0) <= 1)
+        .toList();
+
+    if (criticalItems.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCE8E6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFAD2CF), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.report_problem_rounded,
+                color: Color(0xFFC5221F),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "CRITICAL EXPIRY TELEMETRY ALERTS (${criticalItems.length})",
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFC5221F),
+                  fontSize: 11,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...criticalItems.map((item) {
+            final isExpired = (item['days_left'] ?? 0) == 0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3.0),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.arrow_right_rounded,
+                    color: Color(0xFFC5221F),
+                    size: 16,
+                  ),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: Color(0xFF202124),
+                          fontSize: 13,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: item['name'],
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(
+                            text: isExpired
+                                ? " has crossed retention duration limit."
+                                : " approaches immediate exhaustion window.",
+                            style: const TextStyle(
+                              color: Color(0xFFC5221F),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
