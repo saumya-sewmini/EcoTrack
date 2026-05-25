@@ -155,7 +155,7 @@ class _PantryScreenState extends State<PantryScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: textColor.withOpacity(0.8),
+                color: textColor.withValues(alpha: 0.8),
               ),
             ),
           ],
